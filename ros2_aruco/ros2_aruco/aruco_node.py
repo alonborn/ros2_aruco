@@ -154,7 +154,6 @@ class ArucoNode(rclpy.node.Node):
 
         self.window_size = 10
         self.pose_history = defaultdict(lambda: deque(maxlen=self.window_size))  # or change 3 to any other size
-        self.get_logger().info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1window size: {}".format(self.window_size))
 
     def info_callback(self, info_msg):
         self.info_msg = info_msg
