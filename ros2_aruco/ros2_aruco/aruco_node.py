@@ -47,6 +47,7 @@ from collections import defaultdict, deque
 class ArucoNode(rclpy.node.Node):
     def __init__(self):
         super().__init__("aruco_node")
+        self.last_publish_time = self.get_clock().now()  # in __init__
 
         # Declare and read parameters
         self.declare_parameter(
@@ -168,6 +169,12 @@ class ArucoNode(rclpy.node.Node):
             self.get_logger().warn("No camera info has been received!")
             return
 
+        current_time = self.get_clock().now()
+        if (current_time - self.last_publish_time).nanoseconds < 0.5 * 1e9:  # 0.5s = 2Hz
+            return
+        self.last_publish_time = current_time
+
+
         cv_image = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding="mono8")
         markers = ArucoMarkers()
         pose_array = PoseArray()
@@ -229,60 +236,6 @@ class ArucoNode(rclpy.node.Node):
 
             self.poses_pub.publish(pose_array)
             self.markers_pub.publish(markers)
-
-
-    def image_callback2(self, img_msg):
-        if self.info_msg is None:
-            self.get_logger().warn("No camera info has been received!")
-            return
-
-        cv_image = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding="mono8")
-        markers = ArucoMarkers()
-        pose_array = PoseArray()
-        if self.camera_frame == "":
-            markers.header.frame_id = self.info_msg.header.frame_id
-            pose_array.header.frame_id = self.info_msg.header.frame_id
-        else:
-            markers.header.frame_id = self.camera_frame
-            pose_array.header.frame_id = self.camera_frame
-
-        markers.header.stamp = img_msg.header.stamp
-        pose_array.header.stamp = img_msg.header.stamp
-
-        corners, marker_ids, rejected = cv2.aruco.detectMarkers(
-            cv_image, self.aruco_dictionary, parameters=self.aruco_parameters
-        )
-        if marker_ids is not None:
-            if cv2.__version__ > "4.0.0":
-                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                    corners, self.marker_size, self.intrinsic_mat, self.distortion
-                )
-            else:
-                rvecs, tvecs = cv2.aruco.estimatePoseSingleMarkers(
-                    corners, self.marker_size, self.intrinsic_mat, self.distortion
-                )
-            for i, marker_id in enumerate(marker_ids):
-                pose = Pose()
-                pose.position.x = tvecs[i][0][0]
-                pose.position.y = tvecs[i][0][1]
-                pose.position.z = tvecs[i][0][2]
-
-                rot_matrix = np.eye(4)
-                rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvecs[i][0]))[0]
-                quat = tf_transformations.quaternion_from_matrix(rot_matrix)
-
-                pose.orientation.x = quat[0]
-                pose.orientation.y = quat[1]
-                pose.orientation.z = quat[2]
-                pose.orientation.w = quat[3]
-
-                pose_array.poses.append(pose)
-                markers.poses.append(pose)
-                markers.marker_ids.append(marker_id[0])
-
-            self.poses_pub.publish(pose_array)
-            self.markers_pub.publish(markers)
-
 
 def main():
     rclpy.init()
