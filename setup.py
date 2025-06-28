@@ -1,4 +1,4 @@
-from setuptools import setup,find_packages
+from setuptools import setup, find_packages
 import os
 from glob import glob
 
@@ -7,11 +7,7 @@ package_name = 'ros2_aruco'
 setup(
     name=package_name,
     version='0.1.0',
-    #packages=find_packages(),
-    packages=find_packages(where='ros2_aruco'),
-    package_dir={'': 'ros2_aruco'}
-
-    
+    packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
@@ -23,10 +19,10 @@ setup(
     zip_safe=True,
     maintainer='Nathan Sprague',
     maintainer_email='nathan.r.sprague@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='ROS2 ArUco marker detection package',
+    license='MIT',
     extras_require={
-    'test': ['pytest'],
+        'test': ['pytest'],
     },
     entry_points={
         'console_scripts': [

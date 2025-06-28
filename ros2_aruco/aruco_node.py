@@ -39,7 +39,7 @@ from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseArray, Pose
 from ros2_aruco_interfaces.msg import ArucoMarkers
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
-
+import debugpy
 from collections import defaultdict, deque
 
 
@@ -149,11 +149,13 @@ class ArucoNode(rclpy.node.Node):
         self.intrinsic_mat = None
         self.distortion = None
 
-        self.aruco_dictionary = cv2.aruco.Dictionary_get(dictionary_id)
-        self.aruco_parameters = cv2.aruco.DetectorParameters_create()
+        self.aruco_dictionary = cv2.aruco.getPredefinedDictionary(dictionary_id)
+        self.aruco_parameters = cv2.aruco.DetectorParameters()
+        self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dictionary, self.aruco_parameters)
+
         self.bridge = CvBridge()
 
-        self.window_size = 10
+        self.window_size = 2
         self.pose_history = defaultdict(lambda: deque(maxlen=self.window_size))  # or change 3 to any other size
 
     def info_callback(self, info_msg):
@@ -170,8 +172,8 @@ class ArucoNode(rclpy.node.Node):
             return
 
         current_time = self.get_clock().now()
-        if (current_time - self.last_publish_time).nanoseconds < 0.5 * 1e9:  # 0.5s = 2Hz
-            return
+        # if (current_time - self.last_publish_time).nanoseconds < 0.5 * 1e9:  # 0.5s = 2Hz
+        #     return
         self.last_publish_time = current_time
 
 
@@ -188,26 +190,55 @@ class ArucoNode(rclpy.node.Node):
         markers.header.stamp = img_msg.header.stamp
         pose_array.header.stamp = img_msg.header.stamp
 
-        corners, marker_ids, rejected = cv2.aruco.detectMarkers(
-            cv_image, self.aruco_dictionary, parameters=self.aruco_parameters
-        )
+        # corners, marker_ids, rejected = cv2.aruco.detectMarkers(
+        #     cv_image, self.aruco_dictionary, parameters=self.aruco_parameters
+        # )
+        corners, marker_ids, rejected = self.aruco_detector.detectMarkers(cv_image)
         if marker_ids is not None:
             if cv2.__version__ > "4.0.0":
-                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                    corners, self.marker_size, self.intrinsic_mat, self.distortion
-                )
+                rvecs = []
+                tvecs = []
+
+                # Loop over detected markers
+                for corner in corners:
+                    obj_points = np.array([
+                        [-self.marker_size / 2,  self.marker_size / 2, 0],
+                        [ self.marker_size / 2,  self.marker_size / 2, 0],
+                        [ self.marker_size / 2, -self.marker_size / 2, 0],
+                        [-self.marker_size / 2, -self.marker_size / 2, 0]
+                    ], dtype=np.float32)
+
+                    img_points = corner[0].astype(np.float32)
+
+                    retval, rvec, tvec = cv2.solvePnP(
+                        obj_points,
+                        img_points,
+                        self.intrinsic_mat,
+                        self.distortion
+                    )
+
+                    rvecs.append(rvec)
+                    tvecs.append(tvec)
+
             else:
                 rvecs, tvecs = cv2.aruco.estimatePoseSingleMarkers(
                     corners, self.marker_size, self.intrinsic_mat, self.distortion
                 )
 
+            
+            
             for i, marker_id in enumerate(marker_ids):
+                
                 marker_id = marker_id[0]
-
+                if marker_id != 1:  
+                    continue  # Skip marker ID 1
+                    
                 # Compute pose
-                position = np.array(tvecs[i][0])
+                #position = np.array(tvecs[i][0])
+                position = np.array(tvecs[i].reshape(3,))
+
                 rot_matrix = np.eye(4)
-                rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvecs[i][0]))[0]
+                rot_matrix[0:3, 0:3] = cv2.Rodrigues(rvecs[i].flatten())[0]
                 quat = tf_transformations.quaternion_from_matrix(rot_matrix)
 
                 # Add to history
@@ -233,11 +264,28 @@ class ArucoNode(rclpy.node.Node):
                 pose_array.poses.append(pose)
                 markers.poses.append(pose)
                 markers.marker_ids.append(marker_id)
+                # print(f"Marker ID: {marker_id}, Position: {avg_position}, Orientation: {avg_quat}")
 
             self.poses_pub.publish(pose_array)
+            # for i, pose in enumerate(pose_array.poses):
+            #     p = pose.position
+            #     o = pose.orientation
+            #     print(
+            #         f"Pose[{i}]: "
+            #         f"position=({p.x:.3f}, {p.y:.3f}, {p.z:.3f}), "
+            #         f"orientation=({o.x:.3f}, {o.y:.3f}, {o.z:.3f}, {o.w:.3f})"
+            #     )
+            
+            
             self.markers_pub.publish(markers)
 
 def main():
+
+    debugpy.listen(("localhost", 5678))  # Port for debugger to connect
+    print("Waiting for debugger to attach...")
+    debugpy.wait_for_client()  # Ensures the debugger connects before continuing
+    print("Debugger connected.")
+        
     rclpy.init()
     node = ArucoNode()
     rclpy.spin(node)
