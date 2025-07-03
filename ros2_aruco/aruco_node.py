@@ -281,10 +281,10 @@ class ArucoNode(rclpy.node.Node):
 
 def main():
 
-    debugpy.listen(("localhost", 5678))  # Port for debugger to connect
-    print("Waiting for debugger to attach...")
-    debugpy.wait_for_client()  # Ensures the debugger connects before continuing
-    print("Debugger connected.")
+    # debugpy.listen(("localhost", 5678))  # Port for debugger to connect
+    # print("Waiting for debugger to attach...")
+    # debugpy.wait_for_client()  # Ensures the debugger connects before continuing
+    # print("Debugger connected.")
         
     rclpy.init()
     node = ArucoNode()
