@@ -155,7 +155,7 @@ class ArucoNode(rclpy.node.Node):
 
         self.bridge = CvBridge()
 
-        self.window_size = 2
+        self.window_size = 5
         self.pose_history = defaultdict(lambda: deque(maxlen=self.window_size))  # or change 3 to any other size
 
     def info_callback(self, info_msg):
@@ -267,16 +267,6 @@ class ArucoNode(rclpy.node.Node):
                 # print(f"Marker ID: {marker_id}, Position: {avg_position}, Orientation: {avg_quat}")
 
             self.poses_pub.publish(pose_array)
-            # for i, pose in enumerate(pose_array.poses):
-            #     p = pose.position
-            #     o = pose.orientation
-            #     print(
-            #         f"Pose[{i}]: "
-            #         f"position=({p.x:.3f}, {p.y:.3f}, {p.z:.3f}), "
-            #         f"orientation=({o.x:.3f}, {o.y:.3f}, {o.z:.3f}, {o.w:.3f})"
-            #     )
-            
-            
             self.markers_pub.publish(markers)
 
 def main():
