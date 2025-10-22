@@ -155,7 +155,7 @@ class ArucoNode(rclpy.node.Node):
 
         self.bridge = CvBridge()
 
-        self.window_size = 5
+        self.window_size = 2
         self.pose_history = defaultdict(lambda: deque(maxlen=self.window_size))  # or change 3 to any other size
 
     def info_callback(self, info_msg):
